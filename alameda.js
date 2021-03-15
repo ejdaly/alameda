@@ -196,6 +196,44 @@ var requirejs, require, define;
 
         // Starts with a '.' so need the baseName
         if (name[0].charAt(0) === '.' && baseParts) {
+
+          // EJD - added a new config option here: config.mapBasenames
+          // to normalize relative paths, using the mapped version of the base 
+          // parts, if such a mapping exists...
+          // e.g. if the module we are loading is: /path/to/src/main.js, which 
+          // includes a relative dependency (var lib = require("./lib")), then the 
+          // default behaviour is to normalize ./lib.js to "/path/to/src/lib.js"
+          // (since it's relative to module "main", which has that path...). 
+          // But if "main" has a map config that e.g. says:
+          // "src/main": "/path/to/src/main.js",
+          // then we could also consider "./lib.js" to actually mean "src/lib", 
+          // since "/path/to/src/main.js" actually means "src/main" - via the mapping...
+          // So, with this option, if a map is found (only using starMap, map["*"]), 
+          // then the require("./lib") will be understood (normalized) as "src/lib".
+          // Note: of course if "src/lib" had it's own mapping that e.g. says:
+          // "src/lib": "/path/to/src/lib.js", then that mapping will get 
+          // included below, and the actual path / url will be /path/to/src/lib.js
+          // But, in our use case, where we want to hotreload modules, if we were 
+          // to hotreload "src/main" above, we would still want it to load the 
+          // same "./lib" as it did initially 
+          // i.e. the module in our build bundle (since "src/lib" will already 
+          // be defined, but /path/to/src/lib, will not...).
+          // If we were to later hotreload "src/lib", then that module will get
+          // it's own map config, and get loaded from /path/to/src also 
+          // (in next part below, I think... Actually it looks like the "applyMap"
+          // below is trying to do something similar to what we are doing here..?
+          // Anyway, it works fine for us as is now...)
+          //
+          if(starMap && config.mapBasenames) {
+            for(let key in starMap) {
+              const val = starMap[key];
+              if(val === baseName) {
+                baseParts = key.split("/");
+                break;
+              }
+            }
+          }
+
           //Convert baseName to array, and lop off the last part,
           //so that . matches that 'directory' and not name of the baseName's
           //module. For instance, baseName of 'one/two/three', maps to
@@ -1231,6 +1269,31 @@ var requirejs, require, define;
       req: req,
       execCb: function execCb(name, callback, args, exports) {
         return callback.apply(exports, args);
+      },
+
+      // EJD - adding an undef function
+      // This is pretty naive, but seems to work.
+      // Will use config.map["*"] to work out urls, but not
+      // using paths / anything else...
+      //      
+      undef: function(id) {
+        const starMap = config.map && config.map['*'];
+        if(starMap && starMap[id]) {
+          id = starMap[id];
+        }
+
+        if(urlFetched[id]) {
+          const script = document.head.querySelector('[data-requiremodule="' + id + '"]');
+          if(script) {
+            document.head.removeChild(script);
+          }
+        }
+
+        delete urlFetched[id];
+        delete calledDefine[id];
+        delete defined[id];
+        delete waiting[id];
+        delete deferreds[id];
       }
     };
 
@@ -1265,6 +1328,11 @@ var requirejs, require, define;
   define.amd = {
     jQuery: true
   };
+
+  // Adding these to check environment (e.g. when using amdefine)
+  //
+  define.isBrowser = true;
+  define.isNodeJS  = false;
 
   if (bootstrapConfig) {
     topReq.config(bootstrapConfig);
