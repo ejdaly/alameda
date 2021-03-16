@@ -1274,29 +1274,42 @@ var requirejs, require, define;
 
       // EJD - adding an undef function
       // This is pretty naive, but seems to work.
-      // Will use config.map["*"] to work out urls, but not
-      // using paths / anything else...
+      // Will use config.map["*"], but not using paths / anything else...
       //      
       undef: function(id) {
-        if(!id) return;
-        delete waiting[id];
+        undef(id);
 
         const starMap = config.map && config.map['*'];
-        if(starMap) {
-          id = starMap[id];
-        }
+        if(starMap) undef(starMap[id]);
+    
+        function undef(id) {
 
-        if(urlFetched[id]) {
-          const script = document.head.querySelector('[data-requiremodule="' + id + '"]');
+          // Note: if there is a starMap for this id, then some of these will be no-ops
+          // for the initial run, and the others will be no-ops for the second run...
+          // (i.e. if using starMap, some of these will be using the original id, and 
+          // others use the mapped id)
+          //
+          if(!id) return;
+          delete waiting[id];
+          delete calledDefine[id];
+          delete defined[id];
+          delete deferreds[id];
+
+          // Try both ways of removing the script - i.e. by module id, and by url
+          // (The first should work, and second should be a no-op..)
+          //
+          let script = document.head.querySelector('[data-requiremodule="' + id + '"]');
+          if(script) {
+            document.head.removeChild(script);
+          }
+
+          const url = require.nameToUrl(id);
+          delete urlFetched[url];
+          script = document.head.querySelector('[src="' + url + '"]');
           if(script) {
             document.head.removeChild(script);
           }
         }
-
-        delete urlFetched[id];
-        delete calledDefine[id];
-        delete defined[id];
-        delete deferreds[id];
       }
     };
 
