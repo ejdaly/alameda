@@ -115,7 +115,8 @@ var requirejs, require, define;
         bundles: {},
         pkgs: {},
         shim: {},
-        config: {}
+        config: {},
+        mapBasenames: true
       },
       mapCache = obj(),
       requireDeferreds = [],
@@ -1277,8 +1278,11 @@ var requirejs, require, define;
       // using paths / anything else...
       //      
       undef: function(id) {
+        if(!id) return;
+        delete waiting[id];
+
         const starMap = config.map && config.map['*'];
-        if(starMap && starMap[id]) {
+        if(starMap) {
           id = starMap[id];
         }
 
@@ -1292,7 +1296,6 @@ var requirejs, require, define;
         delete urlFetched[id];
         delete calledDefine[id];
         delete defined[id];
-        delete waiting[id];
         delete deferreds[id];
       }
     };
@@ -1307,6 +1310,8 @@ var requirejs, require, define;
   if (typeof require !== 'function') {
     require = topReq;
   }
+  // globalThis.require = require;
+  // globalThis.requirejs = requirejs;
 
   /**
    * Executes the text. Normally just uses eval, but can be modified
